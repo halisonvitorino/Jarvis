@@ -1,4 +1,5 @@
 """Configuração do JARVIS carregada de variáveis de ambiente e do arquivo .env."""
+from __future__ import annotations
 
 from enum import StrEnum
 from functools import lru_cache
@@ -47,22 +48,23 @@ class Settings(BaseSettings):
     data_dir: Path = Path("data")
     database_path: Path = Path("data/jarvis.db")
 
-    @field_validator("environment", mode="before")
-    @classmethod
-    def _normalize_environment(cls, value: object) -> object:
-        return value.lower() if isinstance(value, str) else value
+    # Omniroute Configuration
+    omniroute_base_url: str = Field(default="http://127.0.0.1:20128/v1")
+    omniroute_api_key: str = Field(default="")
 
-    @field_validator("log_level", mode="before")
-    @classmethod
-    def _normalize_log_level(cls, value: object) -> object:
-        return value.upper() if isinstance(value, str) else value
+    # Gemini Configuration
+    gemini_api_key: str = Field(default="")
+    gemini_model: str = Field(default="gemini-pro-latest")
 
-    @field_validator("log_dir", "data_dir", "database_path")
-    @classmethod
-    def _resolve_path(cls, value: Path) -> Path:
-        return value if value.is_absolute() else (PROJECT_ROOT / value).resolve()
+    # NVIDIA NIM Configuration
+    nvidia_base_url: str = Field(default="https://integrate.api.nvidia.com/v1")
+    nvidia_api_key: str = Field(default="")
+    nvidia_model: str = Field(default="nvidia/nemotron-3-ultra-550b-a55b")
+
+    default_provider: str = Field(default="gemini")
 
     def ensure_directories(self) -> None:
+        """Cria os diretórios necessários para o funcionamento do JARVIS."""
         for directory in (self.log_dir, self.data_dir, self.database_path.parent):
             directory.mkdir(parents=True, exist_ok=True)
 

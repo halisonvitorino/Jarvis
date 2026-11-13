@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "skills": {
+    "python-dev": {
+      "source": "1y33/python-skills",
+      "sourceType": "github",
+      "skillPath": "skills/python-dev/SKILL.md",
+      "computedHash": "61a4096f0d8efc051fedc3d6f34a4d15b120e90f47b929ed4ced08a0da008487"
+    },
+    "python-refactor": {
+      "source": "1y33/python-skills",
+      "sourceType": "github",
+      "skillPath": "skills/python-refactor/SKILL.md",
+      "computedHash": "277278a566e227842dc38c203294bdaefb3b526f1867d2ab7635de3d02f6a97b"
+    }
+  }
+}

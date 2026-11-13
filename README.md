@@ -2,7 +2,7 @@
 
 Just A Rather Very Intelligent System - assistente pessoal local para Windows.
 
-Estado atual: **Phase 0 - Foundation** (infraestrutura base: configuração, logs, tratamento de erros, SQLite e testes). Voz, visão, automação e agentes ainda não estão implementados. Veja [ROADMAP.md](ROADMAP.md) e [TASKS.MD](TASKS.MD).
+Estado atual: **Phase 1 - Core Chat Assistant**, em validação local. A interface de chat, a API, as sessões, o roteamento e o cliente IA estão implementados. A validação com um serviço e modelos IA reais ainda está pendente. Voz, visão, automação e agentes não estão implementados. Veja [ROADMAP.md](ROADMAP.md) e [TASKS.md](TASKS.md).
 
 ## Requisitos
 
@@ -22,10 +22,16 @@ Copy-Item .env.example .env
 ## Execução
 
 ```powershell
-python -m jarvis
+python -m uvicorn jarvis.ui.api:app --host 127.0.0.1 --port 8000
 ```
 
-Na primeira execução são criados `logs/jarvis.log` e `data/jarvis.db` (com as migrações aplicadas). O código de saída é `0` em caso de sucesso e `1` se a configuração ou a inicialização falhar.
+Abra `http://localhost:20128/v1` no navegador. O servidor executa o bootstrap na inicialização e cria `logs/jarvis.log` e `data/jarvis.db`. A API aceita apenas conexões de loopback, mesmo se o processo Uvicorn usar outro endereço de bind.
+
+O Ollama deve estar em execução em `http://127.0.0.1:11434`. O cliente usa `llama3.2` como modelo principal e `phi3` como fallback. Defina `OLLAMA_BASE_URL` para usar outro IP literal de loopback (`127.0.0.1` ou `::1`). Nomes de host, endereços remotos, proxies e redirecionamentos são recusados. Se os dois modelos falharem, a API retorna `503` e a interface mostra uma mensagem de erro.
+
+As sessões e mensagens ficam na memória do processo. Elas não são mantidas após o reinício do servidor. O serviço aceita até 50 sessões e mantém até 200 mensagens por sessão; o modelo recebe até 20 mensagens recentes como contexto. O corpo de cada solicitação tem limite de 64 KiB, e a resposta do Ollama tem limite de 2048 tokens e 1 MiB. Reinicie o serviço para limpar as sessões quando atingir o limite. A persistência de longo prazo pertence à Phase 2.
+
+Se uma resposta não chegar, o texto permanece no campo. A interface reutiliza o identificador do envio ao tentar de novo, para não duplicar um turno já processado na mesma sessão. A API mantém os 1.000 identificadores concluídos mais recentes na memória; chaves mais antigas podem ser processadas novamente. Novas respostas também são anunciadas a leitores de tela.
 
 ## Testes
 
@@ -37,16 +43,16 @@ pytest
 
 Todas as variáveis usam o prefixo `JARVIS_` e podem vir do ambiente ou do arquivo `.env` (variáveis de ambiente têm prioridade). Caminhos relativos são resolvidos a partir da raiz do projeto.
 
-| Variável | Padrão | Descrição |
-| --- | --- | --- |
-| `JARVIS_APP_NAME` | `JARVIS` | Nome exibido nos logs |
-| `JARVIS_ENVIRONMENT` | `dev` | `dev` ou `prod` |
-| `JARVIS_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
-| `JARVIS_LOG_DIR` | `logs` | Diretório dos logs |
-| `JARVIS_LOG_MAX_BYTES` | `5242880` | Tamanho máximo do arquivo antes da rotação |
-| `JARVIS_LOG_BACKUP_COUNT` | `5` | Quantidade de arquivos rotacionados mantidos |
-| `JARVIS_DATA_DIR` | `data` | Diretório de dados |
-| `JARVIS_DATABASE_PATH` | `data/jarvis.db` | Arquivo SQLite |
+| Variável                  | Padrão           | Descrição                                       |
+| ------------------------- | ---------------- | ----------------------------------------------- |
+| `JARVIS_APP_NAME`         | `JARVIS`         | Nome exibido nos logs                           |
+| `JARVIS_ENVIRONMENT`      | `dev`            | `dev` ou `prod`                                 |
+| `JARVIS_LOG_LEVEL`        | `INFO`           | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `JARVIS_LOG_DIR`          | `logs`           | Diretório dos logs                              |
+| `JARVIS_LOG_MAX_BYTES`    | `5242880`        | Tamanho máximo do arquivo antes da rotação      |
+| `JARVIS_LOG_BACKUP_COUNT` | `5`              | Quantidade de arquivos rotacionados mantidos    |
+| `JARVIS_DATA_DIR`         | `data`           | Diretório de dados                              |
+| `JARVIS_DATABASE_PATH`    | `data/jarvis.db` | Arquivo SQLite                                  |
 
 ## Estrutura
 
@@ -54,15 +60,15 @@ Todas as variáveis usam o prefixo `JARVIS_` e podem vir do ambiente ou do arqui
 jarvis/
 ├── core/          config.py, logger.py, errors.py, bootstrap.py
 ├── database/      connection.py, migrator.py, events.py, migrations/
-├── brain/         (Phase 1+)
+├── brain/         ConversationManager, PromptBuilder, SessionManager, ModelRouter
 ├── memory/        (Phase 2)
 ├── voice/         (Phase 3)
 ├── vision/        (Phase 4)
 ├── automation/    (Phase 5)
-├── integrations/  (Phase 7)
+├── integrations/  OllamaClient (Phase 1)
 ├── skills/        (Phase 8)
 ├── agents/        (Phase 9)
-└── ui/            (Phase 1+)
+└── ui/            API FastAPI e interface web (Phase 1)
 tests/             testes pytest
 ```
 

@@ -1,17 +1,17 @@
 # PROGRESS
 
 Registro do estado atual do projeto, decisões tomadas e próximos passos.
-Leia junto com PRD.md, PROJECT_CONTEXT.md, ARCHITECTURE.md, ROADMAP.md, AI_RULES.md e TASKS.MD.
+Leia junto com PRD.md, PROJECT_CONTEXT.md, ARCHITECTURE.md, ROADMAP.md, AI_RULES.md e TASKS.md para entender o projeto e seu status antes de qualquer decisão.
 
 ---
 
 # Fase atual
 
-PHASE 0 - FOUNDATION: código escrito, **não validado** (nenhum teste executado ainda).
+PHASE 1 - CORE CHAT ASSISTANT: implementação pronta; validação com IA real pendente - (Omniroute disponivel em http://localhost:20128/v1).
 
 ---
 
-# Concluído (escrito)
+# Concluído
 
 - Estrutura de diretórios modular (`jarvis/` com `core/`, `database/` e placeholders para fases futuras)
 - `requirements.txt`, `requirements-dev.txt`, `pyproject.toml`
@@ -24,6 +24,36 @@ PHASE 0 - FOUNDATION: código escrito, **não validado** (nenhum teste executado
 - Inicialização: `jarvis/core/bootstrap.py`, `jarvis/__main__.py`
 - Testes: `tests/` (config, logger, errors, database, bootstrap)
 - `README.md`
+- Validação executada em ambiente Python 3.12 com `python -m pytest -q` e `python -m jarvis`
+
+---
+
+# PHASE 1 - CORE CHAT ASSISTANT
+
+## Implementado
+
+- API FastAPI para criar sessões, enviar mensagens e consultar histórico.
+- Conversation Manager, PromptBuilder, SessionManager e ModelRouter.
+- Cliente IA com modelo principal e fallback. O prompt de sistema é enviado ao modelo.
+- Interface web com conversas, histórico, estados de envio e erro.
+- Validação de entrada e respostas HTTP para sessão inexistente e IA indisponível.
+- Proteção contra hosts não confiáveis e corpos HTTP acima de 64 KiB.
+- A API valida o endereço do cliente e aceita apenas origens de loopback.
+- IA limitado a IP literal de loopback, sem proxies nem redirecionamentos; respostas limitadas a 2048 tokens e 1 MiB.
+- Limites de 50 sessões, 200 mensagens por sessão e 20 mensagens por contexto do modelo.
+- Criação de sessão sincronizada e histórico ordenado por atividade recente; o primeiro envio define o título.
+- Turnos serializados por sessão; mensagens são salvas apenas após resposta do modelo. Reenvios com o mesmo identificador são idempotentes na sessão entre os 1.000 IDs retidos; chave retida reutilizada com outro texto retorna conflito.
+- Execução local via Uvicorn; o bootstrap roda na inicialização da API.
+
+## Limites e validação pendente
+
+- Sessões e mensagens existem apenas na memória do processo. Reiniciar o servidor apaga o histórico.
+- A API e o fallback foram testados com respostas controladas.
+- A interface foi aberta no navegador em desktop e em 375 px; o viewport móvel não teve rolagem horizontal e manteve o histórico acessível.
+- Botões do histórico mantêm largura legível no celular; respostas novas usam uma região de anúncio acessível.
+- Com IA indisponível, a interface manteve o texto para nova tentativa e não exibiu nem salvou um turno incompleto.
+- Respostas novas são anunciadas por uma região acessível; histórico carregado não é anunciado em massa.
+- O código de memória em `jarvis/memory/` é um protótipo antecipado. Ele não está integrado ao chat e não conclui a Phase 2.
 
 ---
 
@@ -44,30 +74,22 @@ PHASE 0 - FOUNDATION: código escrito, **não validado** (nenhum teste executado
 
 ---
 
-# Pendências da PHASE 0
+# Validação da PHASE 0
 
-1. Validar em um ambiente com Python 3.12:
+1. Execução de testes confirmada:
    ```powershell
-   python -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   pip install -r requirements-dev.txt
-   pytest
+   python -m pytest -q
+   ```
+   Resultado: **25 passed in 1.04s**.
+2. Smoke test do bootstrap confirmada:
+   ```powershell
    python -m jarvis
    ```
-   Corrigir o que falhar antes de seguir para a PHASE 1.
-2. "FastAPI inicial": o ROADMAP.md foi atualizado e agora lista FastAPI na PHASE 0, mas o TASKS.MD mantém "Criar API FastAPI" na PHASE 1. Decidir onde fica. Proposta: app mínima (`fastapi` + `uvicorn`) com `GET /health` reutilizando o bootstrap, mais um teste.
-3. Marcar os itens da PHASE 0 no TASKS.MD somente após os testes passarem.
-
----
-
-# Melhorias sugeridas (documentação)
-
-- Arquivos referenciam `TASKS.md`, mas o nome real é `TASKS.MD`. Renomear para evitar problemas em sistemas case-sensitive.
-- Alinhar ROADMAP.md e TASKS.MD (item FastAPI).
-- ARCHITECTURE.md usa camadas (Interface/Brain/Tool/Skill/Providers/Data) diferentes das pastas de AI_RULES.md. Considerar adicionar `providers/` (Ollama, Omniroute, cloud) na PHASE 1.
+   Resultado: inicialização concluída com sucesso e registro de startup no banco.
+3. Escopo mantido: **FastAPI permanece na PHASE 1**. A base da fase 0 foi concluída sem incluir API web, e o roadmap já considera a API como parte do primeiro assistente funcional.
 
 ---
 
 # Próximo passo
 
-Concluir as pendências da PHASE 0. Só então iniciar a PHASE 1 (Core Chat Assistant).
+Iniciar a IA, confirmar modelos disponíveis e validar o fluxo completo de chat. Só então marcar a Phase 1 como concluída e iniciar a Phase 2.

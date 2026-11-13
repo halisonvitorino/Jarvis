@@ -107,9 +107,8 @@ Todas as preferências e memórias pertencem ao proprietário.
 
 Prioridade:
 
-1. Ollama Local
-2. Omniroute Localhost
-3. Modelos Cloud
+1. Omniroute Localhost
+2. Modelos Cloud
 
 Cloud Providers:
 

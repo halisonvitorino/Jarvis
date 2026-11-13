@@ -38,7 +38,7 @@ Entregáveis:
 
 - Interface de chat
 - Histórico de conversa
-- Integração com Ollama
+- Integração com IA
 - Router de modelos
 - Gerenciamento de contexto
 - FastAPI inicial

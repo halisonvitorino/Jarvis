@@ -1,11 +1,12 @@
 # AI DEVELOPMENT RULES
 
-Antes de gerar qualquer código:
+Antes de gerar qualquer código :
 
 1. Ler PROJECT_CONTEXT.md
 2. Ler PRD.md
 3. Ler ARCHITECTURE.md
 4. Ler TASKS.md
+5. Ler PROGRESS.md
 
 ---
 
@@ -43,7 +44,7 @@ Durante PHASE 1:
 
 ✅ Chat
 ✅ Contexto
-✅ Ollama
+✅ IA
 
 ❌ Voz
 ❌ OCR

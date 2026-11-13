@@ -5,50 +5,63 @@
 Objetivo:
 Criar a infraestrutura base do sistema.
 
+Status: concluída e validada.
+
 ## Core
 
-- [ ] Criar estrutura de diretórios
-- [ ] Configurar ambiente Python 3.12
-- [ ] Configurar Git
-- [ ] Criar requirements.txt
-- [ ] Criar sistema de configuração (.env)
-- [ ] Criar sistema de logs
-- [ ] Criar tratamento global de erros
-- [ ] Criar SQLite inicial
-- [ ] Criar testes básicos
+- [x] Criar estrutura de diretórios
+- [x] Configurar ambiente Python 3.12
+- [x] Configurar Git
+- [x] Criar requirements.txt
+- [x] Criar sistema de configuração (.env)
+- [x] Criar sistema de logs
+- [x] Criar tratamento global de erros
+- [x] Criar SQLite inicial
+- [x] Criar testes básicos
+
+Nota: o FastAPI fica na PHASE 1; a Fase 0 encerra com a base estável e validada.
 
 ---
 
 # PHASE 1 - CORE CHAT ASSISTANT
+
+Status: implementação pronta; validação com IA real pendente.
 
 Objetivo:
 Construir o primeiro assistente funcional por texto.
 
 ## Backend
 
-- [ ] Criar API FastAPI
-- [ ] Criar Conversation Manager
-- [ ] Criar Prompt Manager
-- [ ] Criar Session Manager
+- [x] Criar API FastAPI
+- [x] Criar Conversation Manager
+- [x] Criar Prompt Manager
+- [x] Criar Session Manager
 
 ## IA
 
-- [ ] Integrar Ollama
-- [ ] Criar Model Router
-- [ ] Criar fallback de modelos
+- [x] Integrar cliente IA
+- [x] Criar Model Router
+- [x] Criar fallback de modelos
+- [ ] Validar chamada a modelos IA reais
 
 ## Interface
 
-- [ ] Criar interface web simples
-- [ ] Criar histórico de conversas
+- [x] Criar interface web simples
+- [x] Criar histórico de conversas durante a execução do servidor
 
 ## Testes
 
-- [ ] Testar fluxo completo
+- [x] Testar fluxo completo da API com cliente de modelo simulado
+
+Nota: sessões são mantidas em memória e terminam quando o servidor reinicia. O limite é 50 sessões e 200 mensagens por sessão; cada prompt usa até 20 mensagens recentes. Corpos de requisição têm limite de 64 KiB; respostas do IA têm limite de 2048 tokens e 1 MiB. O histórico é ordenado por atividade recente. Reenvios usam um identificador idempotente por sessão; os 1.000 IDs concluídos mais recentes são retidos. Reutilizar uma chave retida com outro texto na mesma sessão retorna `409`. A API aceita apenas clientes de loopback. Reinicie o serviço para limpar as sessões ao atingir o limite. O cliente aceita apenas IPs literais de loopback para IA e recusa proxies e redirecionamentos. A API fica disponível em `http://localhost:20128/v1` com Uvicorn.
 
 ---
 
 # PHASE 2 - MEMORY SYSTEM
+
+Status: aguardando conclusão da Phase 1.
+
+Nota: existe um protótipo em `jarvis/memory/` com testes para memória curta, perfil e busca textual. Ele foi criado antes da conclusão da Phase 1 e ainda não está integrado ao chat. Não considerar a Phase 2 concluída nem ampliar seu escopo até validar a Phase 1.
 
 Objetivo:
 Permitir que o Jarvis lembre de informações permanentemente.

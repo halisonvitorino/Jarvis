@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#18231f" />
+    <title>J.A.R.V.I.S. | Conversas</title>
+    <link rel="stylesheet" href="/static/chat.css" />
+    <script src="/static/chat.js" defer></script>
+  </head>
+  <body>
+    <div class="workspace">
+      <aside class="sidebar" aria-label="Conversas">
+        <a class="brand" href="/" aria-label="J.A.R.V.I.S. início">
+          <span class="brand-mark" aria-hidden="true">J</span>
+          <span>J.A.R.V.I.S.</span>
+        </a>
+        <button id="new-session" class="new-session" type="button">
+          + Nova conversa
+        </button>
+        <h2 class="section-label">RECENTES</h2>
+        <nav aria-label="Histórico de conversas">
+          <ul id="conversation-list" class="conversation-list"></ul>
+        </nav>
+        <p class="local-note"><span aria-hidden="true"></span> Serviço local</p>
+      </aside>
+
+      <main class="chat-main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">ASSISTENTE PESSOAL</p>
+            <h1 id="conversation-title">Nova conversa</h1>
+          </div>
+          <p id="status" class="status" role="status">Pronto</p>
+        </header>
+
+        <p
+          id="assistant-announcement"
+          class="visually-hidden"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        ></p>
+
+        <section
+          id="messages"
+          class="messages"
+          aria-label="Mensagens da conversa"
+          aria-live="off"
+        >
+          <div class="empty-state" id="empty-state">
+            <span class="empty-mark" aria-hidden="true">J</span>
+            <h2>Como posso ajudar?</h2>
+            <p>Escreva uma mensagem para iniciar a conversa.</p>
+          </div>
+        </section>
+
+        <form id="composer" class="composer">
+          <label class="visually-hidden" for="message">Sua mensagem</label>
+          <textarea
+            id="message"
+            name="message"
+            rows="1"
+            maxlength="12000"
+            placeholder="Escreva uma mensagem..."
+            required
+          ></textarea>
+          <button id="send-message" type="submit" aria-label="Enviar mensagem">
+            Enviar
+          </button>
+          <p class="composer-note">
+            As conversas ficam disponíveis enquanto o serviço estiver em
+            execução.
+          </p>
+        </form>
+      </main>
+    </div>
+  </body>
+</html>
