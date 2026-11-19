@@ -1,0 +1,30 @@
+- generic [ref=e2]:
+  - complementary "Conversas" [ref=e3]:
+    - link "J.A.R.V.I.S. início" [ref=e4] [cursor=pointer]:
+      - /url: /
+      - generic [aria-hidden] [ref=e5]: J
+      - generic [ref=e6]: J.A.R.V.I.S.
+    - button "+ Nova conversa" [ref=e7] [cursor=pointer]
+    - heading "RECENTES" [level=2] [ref=e8]
+    - navigation "Histórico de conversas" [ref=e9]:
+      - list [ref=e10]:
+        - listitem [ref=e11]: Nenhuma conversa
+    - paragraph [ref=e12]: Serviço local
+  - main [ref=e14]:
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - paragraph [ref=e17]: ASSISTENTE PESSOAL
+        - heading "Nova conversa" [level=1] [ref=e18]
+      - status [ref=e19]: Pronto
+    - status [ref=e20]
+    - region "Mensagens da conversa" [ref=e21]:
+      - generic [ref=e22]:
+        - generic [aria-hidden] [ref=e23]: J
+        - heading "Como posso ajudar?" [level=2] [ref=e24]
+        - paragraph [ref=e25]: Escreva uma mensagem para iniciar a conversa.
+    - generic [ref=e26]:
+      - generic [ref=e27]: Sua mensagem
+      - textbox "Sua mensagem" [ref=e28]:
+        - /placeholder: Escreva uma mensagem...
+      - button "Enviar mensagem" [ref=e29] [cursor=pointer]: Enviar
+      - paragraph [ref=e30]: As conversas ficam disponíveis enquanto o serviço estiver em execução.

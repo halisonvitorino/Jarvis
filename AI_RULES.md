@@ -7,6 +7,7 @@ Antes de gerar qualquer código :
 3. Ler ARCHITECTURE.md
 4. Ler TASKS.md
 5. Ler PROGRESS.md
+6. Ler ROADMAP.md
 
 ---
 

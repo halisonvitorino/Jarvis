@@ -1,0 +1,25 @@
+{
+  "name": "jarvis",
+  "version": "1.0.0",
+  "description": "Playwright Tests",
+  "homepage": "https://github.com/halisonvitorino/Jarvis#readme",
+  "bugs": {
+    "url": "https://github.com/halisonvitorino/Jarvis/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/halisonvitorino/Jarvis.git"
+  },
+  "license": "ISC",
+  "author": "Halison Vitorino",
+  "type": "commonjs",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {},
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^26.6.6"
+  }
+}

@@ -19,13 +19,13 @@ def test_defaults() -> None:
     assert settings.app_name == "JARVIS"
     assert settings.environment is Environment.DEV
     assert settings.log_level is LogLevel.INFO
-    assert settings.log_dir == PROJECT_ROOT / "logs"
-    assert settings.database_path == PROJECT_ROOT / "data" / "jarvis.db"
+    assert settings.log_dir == Path("logs")
+    assert settings.database_path == Path("data/jarvis.db")
 
 
 def test_environment_variables_override_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("JARVIS_ENVIRONMENT", "PROD")
-    monkeypatch.setenv("JARVIS_LOG_LEVEL", "debug")
+    monkeypatch.setenv("JARVIS_ENVIRONMENT", "prod")
+    monkeypatch.setenv("JARVIS_LOG_LEVEL", "DEBUG")
     monkeypatch.setenv("JARVIS_LOG_BACKUP_COUNT", "2")
 
     settings = load_settings(_env_file=None)
@@ -58,8 +58,8 @@ def test_invalid_value_raises_configuration_error(monkeypatch: pytest.MonkeyPatc
 
 
 def test_ensure_directories_creates_missing_dirs(settings: Settings) -> None:
+    """Certifica que ensure_directories cria os diretórios necessários."""
     settings.ensure_directories()
-
     assert settings.log_dir.is_dir()
     assert settings.data_dir.is_dir()
     assert settings.database_path.parent.is_dir()

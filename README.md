@@ -25,10 +25,6 @@ Copy-Item .env.example .env
 python -m uvicorn jarvis.ui.api:app --host 127.0.0.1 --port 8000
 ```
 
-Abra `http://localhost:20128/v1` no navegador. O servidor executa o bootstrap na inicialização e cria `logs/jarvis.log` e `data/jarvis.db`. A API aceita apenas conexões de loopback, mesmo se o processo Uvicorn usar outro endereço de bind.
-
-O Ollama deve estar em execução em `http://127.0.0.1:11434`. O cliente usa `llama3.2` como modelo principal e `phi3` como fallback. Defina `OLLAMA_BASE_URL` para usar outro IP literal de loopback (`127.0.0.1` ou `::1`). Nomes de host, endereços remotos, proxies e redirecionamentos são recusados. Se os dois modelos falharem, a API retorna `503` e a interface mostra uma mensagem de erro.
-
 As sessões e mensagens ficam na memória do processo. Elas não são mantidas após o reinício do servidor. O serviço aceita até 50 sessões e mantém até 200 mensagens por sessão; o modelo recebe até 20 mensagens recentes como contexto. O corpo de cada solicitação tem limite de 64 KiB, e a resposta do Ollama tem limite de 2048 tokens e 1 MiB. Reinicie o serviço para limpar as sessões quando atingir o limite. A persistência de longo prazo pertence à Phase 2.
 
 Se uma resposta não chegar, o texto permanece no campo. A interface reutiliza o identificador do envio ao tentar de novo, para não duplicar um turno já processado na mesma sessão. A API mantém os 1.000 identificadores concluídos mais recentes na memória; chaves mais antigas podem ser processadas novamente. Novas respostas também são anunciadas a leitores de tela.

@@ -12,6 +12,7 @@ from jarvis.core.logger import get_logger
 from jarvis.integrations.gemini_client import GeminiClient, GeminiError
 from jarvis.integrations.nvidia_client import NvidiaClient, NvidiaError
 from jarvis.integrations.ollama_client import OmnirouteClient, OmnirouteError
+from jarvis.memory import MemoryManager
 
 logger = get_logger(__name__)
 MAX_CONTEXT_MESSAGES = 20

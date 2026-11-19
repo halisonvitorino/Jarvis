@@ -1,4 +1,7 @@
-"""Memória de curto e longo prazo. Implementação da Phase 2 (Memory System)."""
+"""Memória de curto e longo prazo. Implementação da Phase 2 (Memory System).
+
+Inclui busca vetorial semântica via ChromaDB (ajuste Phase 2).
+"""
 
 from __future__ import annotations
 
@@ -91,5 +94,6 @@ class MemoryStore:
         session_memory = self._sessions.get(str(session_id), [])
         return "\n".join(f"{entry['role']}: {entry['content']}" for entry in session_memory)
 
+from .memory_manager import MemoryManager
 
-__all__ = ["MemoryStore"]
+__all__ = ["MemoryStore", "MemoryManager"]
