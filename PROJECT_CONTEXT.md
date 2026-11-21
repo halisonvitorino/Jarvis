@@ -107,7 +107,7 @@ Todas as preferências e memórias pertencem ao proprietário.
 
 Prioridade:
 
-1. Omniroute Localhost
+1. Modelos Locais
 2. Modelos Cloud
 
 Cloud Providers:

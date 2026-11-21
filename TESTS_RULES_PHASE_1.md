@@ -13,6 +13,7 @@ This prompt guides you through a complete QA workflow using MCP servers and AI a
 I need to start a testing workflow.
 Read PRD.md and ROADMAP.md files
 Focus on PHASE 1 - CORE CHAT ASSISTANT - Only
+Create and use mocked data for testing
 Summarize the key requirements, acceptance criteria and testing scope.
 
 ### Expected Output:
@@ -51,6 +52,7 @@ Ensure each test scenario includes:
 - Complete test plan markdown file saved to specs/
 - Organized test scenarios with clear structure
 - Gherkin and BDD format
+- All necessary mocked data
 - Browser exploration screenshots (if needed)
 
 ---
@@ -107,6 +109,7 @@ Generate Playwright JavaScript or Python automation scripts:
 2. Organize scripts into appropriate test suite files in: tests/chat_assistant-tests/
 3. Use the test case names and steps from the test plan
 4. Use reliable selectors and strategies from exploratory testing
+5. Use the generated mocked data
 
 Requirements for all scripts:
 

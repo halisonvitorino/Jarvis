@@ -29,7 +29,7 @@ Jarvis
 │
 ├── AI Providers
 │ ├── IA
-│ ├── Omniroute
+│ ├── Llama
 │ ├── OpenAI
 │ ├── Claude
 │ └── Gemini

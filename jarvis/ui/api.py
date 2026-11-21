@@ -234,6 +234,12 @@ def create_app(manager: ConversationManager | None = None) -> FastAPI:
                 detail=f"Provedor de IA indisponível: {exc}",
             ) from exc
 
+    @app.delete("/api/test/sessions")
+    def clear_all_sessions() -> dict[str, str]:
+        """Limpa todas as sessões (apenas para testes)."""
+        conversation_manager.session_manager.clear_all_sessions()
+        return {"status": "cleared"}
+
     return app
 
 

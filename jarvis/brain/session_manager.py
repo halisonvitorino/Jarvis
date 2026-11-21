@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from threading import Lock
 from uuid import uuid4
 
-MAX_SESSIONS = 50
+MAX_SESSIONS = 500
 MAX_MESSAGES_PER_SESSION = 200
 
 
@@ -68,3 +68,8 @@ class SessionManager:
 
     def get_messages(self, session_id: str) -> list[ChatMessage]:
         return list(self.get_session(session_id).messages)
+
+    def clear_all_sessions(self) -> None:
+        """Remove todas as sessões (útil para testes)."""
+        with self._sessions_lock:
+            self._sessions.clear()

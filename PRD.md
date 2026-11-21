@@ -21,6 +21,7 @@ O sistema deve ir além de um chatbot tradicional, sendo capaz de:
 - Criar e utilizar agentes especializados
 - Gerenciar memória de longo prazo
 - Integrar múltiplos serviços
+- Aprender e se auto aprimorar
 
 ---
 
