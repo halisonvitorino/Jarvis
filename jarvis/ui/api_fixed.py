@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import ipaddress
 from collections.abc import AsyncIterator
@@ -21,6 +21,9 @@ from jarvis.core.bootstrap import bootstrap
 from jarvis.integrations.gemini_client import GeminiError
 from jarvis.integrations.nvidia_client import NvidiaError
 from jarvis.integrations.ollama_client import OmnirouteError
+from jarvis.voice.tts import TextToSpeech, TTSError
+import os
+from pathlib import Path
 
 STATIC_DIR = Path(__file__).with_name("static")
 MAX_REQUEST_BODY_BYTES = 64 * 1024
@@ -128,6 +131,7 @@ class ChatRequest(BaseModel):
     session_id: str = Field(min_length=1, max_length=64)
     message: str = Field(min_length=1, max_length=12000)
     request_id: str | None = Field(default=None, min_length=1, max_length=64)
+    speak: bool = Field(default=False)
 
     @field_validator("message")
     @classmethod
@@ -155,10 +159,30 @@ def _serialize_session(session: Any) -> dict[str, str]:
     }
 
 
-def create_app(manager: ConversationManager | None = None) -> FastAPI:
+def create_app(
+    manager: ConversationManager | None = None,
+    tts: TextToSpeech | None = None,
+) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         bootstrap()
+        tts = None
+        
+        # Auto-load TTS from project models if available and not explicitly provided
+        if tts is None:
+            models_dir = Path(__file__).parent.parent / "data" / "voice" / "models"
+            onnx_path = models_dir / "pt_BR-jeff-medium.onnx"
+            json_path = models_dir / "pt_BR-jeff-medium.onnx.json"
+            if onnx_path.exists() and json_path.exists():
+                try:
+                    tts = TextToSpeech(model_path=str(onnx_path), config_path=str(json_path))
+                    tts.load_model()
+                    print("TTS automÃ¡tico carregado dos modelos do projeto")
+                except Exception as e:
+                    print(f"NÃ£o foi possÃ­vel carregar TTS automÃ¡tico: {e}")
+            else:
+                print("Modelos TTS nÃ£o encontrados")
+        
         yield
 
     app = FastAPI(title="Jarvis", version="0.1.0", lifespan=lifespan)
@@ -217,9 +241,9 @@ def create_app(manager: ConversationManager | None = None) -> FastAPI:
         return {"session_id": session.id, "title": session.title}
 
     @app.post("/api/chat")
-    def chat(payload: ChatRequest) -> dict[str, str]:
+    def chat(payload: ChatRequest) -> dict[str, Any]:
         try:
-            return conversation_manager.chat(
+            result = conversation_manager.chat(
                 payload.session_id,
                 payload.message,
                 request_id=payload.request_id,
@@ -233,6 +257,22 @@ def create_app(manager: ConversationManager | None = None) -> FastAPI:
                 status_code=503,
                 detail=f"Provedor de IA indisponível: {exc}",
             ) from exc
+
+        spoken = False
+        if payload.speak and tts is not None:
+            try:
+                tts.synthesize_and_play(result.get("response", ""))
+                spoken = True
+            except TTSError:
+                spoken = False
+
+        return {
+            "session_id": result["session_id"],
+            "title": result["title"],
+            "response": result["response"],
+            "model": result["model"],
+            "spoken": spoken,
+        }
 
     @app.delete("/api/test/sessions")
     def clear_all_sessions() -> dict[str, str]:
