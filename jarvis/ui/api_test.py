@@ -21,6 +21,7 @@ from jarvis.core.bootstrap import bootstrap
 from jarvis.integrations.gemini_client import GeminiError
 from jarvis.integrations.nvidia_client import NvidiaError
 from jarvis.integrations.ollama_client import OmnirouteError
+from jarvis.voice.tts import TextToSpeech, TTSError
 
 STATIC_DIR = Path(__file__).with_name("static")
 MAX_REQUEST_BODY_BYTES = 64 * 1024
@@ -128,6 +129,7 @@ class ChatRequest(BaseModel):
     session_id: str = Field(min_length=1, max_length=64)
     message: str = Field(min_length=1, max_length=12000)
     request_id: str | None = Field(default=None, min_length=1, max_length=64)
+    speak: bool = Field(default=False)
 
     @field_validator("message")
     @classmethod
@@ -449,7 +451,10 @@ def get_test_conversation_manager() -> TestConversationManager:
         _test_conversation_manager = TestConversationManager()
     return _test_conversation_manager
 
-def create_test_app(manager: TestConversationManager | None = None) -> FastAPI:
+def create_test_app(
+    manager: TestConversationManager | None = None,
+    tts: TextToSpeech | None = None,
+) -> FastAPI:
     """Cria app FastAPI com ConversationManager de teste (mocked AI providers)."""
     
     @asynccontextmanager
@@ -459,11 +464,6 @@ def create_test_app(manager: TestConversationManager | None = None) -> FastAPI:
 
     app = FastAPI(title="Jarvis Test", version="0.1.0", lifespan=lifespan)
     app.add_middleware(RequestBodyLimitMiddleware, max_body_bytes=MAX_REQUEST_BODY_BYTES)
-    app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=["127.0.0.1", "localhost", "::1"],
-    )
-    app.add_middleware(LoopbackClientMiddleware)
     conversation_manager = manager or get_test_conversation_manager()
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -513,9 +513,9 @@ def create_test_app(manager: TestConversationManager | None = None) -> FastAPI:
         return {"session_id": session.id, "title": session.title}
 
     @app.post("/api/chat")
-    def chat(payload: ChatRequest) -> dict[str, str]:
+    def chat(payload: ChatRequest) -> dict[str, Any]:
         try:
-            return conversation_manager.chat(
+            result = conversation_manager.chat(
                 payload.session_id,
                 payload.message,
                 request_id=payload.request_id,
@@ -529,6 +529,22 @@ def create_test_app(manager: TestConversationManager | None = None) -> FastAPI:
                 status_code=503,
                 detail=f"Provedor de IA indisponível: {exc}",
             ) from exc
+
+        spoken = False
+        if payload.speak and tts is not None:
+            try:
+                tts.synthesize_and_play(result.get("response", ""))
+                spoken = True
+            except TTSError:
+                spoken = False
+
+        return {
+            "session_id": result["session_id"],
+            "title": result["title"],
+            "response": result["response"],
+            "model": result["model"],
+            "spoken": spoken,
+        }
 
     @app.delete("/api/test/sessions")
     def clear_all_sessions() -> dict[str, str]:

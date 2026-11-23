@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import ipaddress
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -21,6 +22,9 @@ from jarvis.core.bootstrap import bootstrap
 from jarvis.integrations.gemini_client import GeminiError
 from jarvis.integrations.nvidia_client import NvidiaError
 from jarvis.integrations.ollama_client import OmnirouteError
+from jarvis.voice.tts import TextToSpeech, TTSError
+import os
+from pathlib import Path
 
 STATIC_DIR = Path(__file__).with_name("static")
 MAX_REQUEST_BODY_BYTES = 64 * 1024
@@ -128,6 +132,7 @@ class ChatRequest(BaseModel):
     session_id: str = Field(min_length=1, max_length=64)
     message: str = Field(min_length=1, max_length=12000)
     request_id: str | None = Field(default=None, min_length=1, max_length=64)
+    speak: bool = Field(default=False)
 
     @field_validator("message")
     @classmethod
@@ -155,14 +160,40 @@ def _serialize_session(session: Any) -> dict[str, str]:
     }
 
 
-def create_app(manager: ConversationManager | None = None) -> FastAPI:
+def create_app(
+    manager: ConversationManager | None = None,
+    tts: TextToSpeech | None = None,
+) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        nonlocal tts  # 1. Usa a variável 'tts' externa em vez de criar uma local
         bootstrap()
+
+        if tts is None:
+            # 2. Aponta para a pasta 'data' na raiz do projeto (3 níveis acima de api.py)
+            project_root = Path(__file__).resolve().parent.parent.parent
+            models_dir = project_root / "data" / "voice" / "models"
+            onnx_path = models_dir / "pt_BR-jeff-medium.onnx"
+            json_path = models_dir / "pt_BR-jeff-medium.onnx.json"
+
+            if onnx_path.exists() and json_path.exists():
+                try:
+                    tts = TextToSpeech(
+                        model_path=str(onnx_path), config_path=str(json_path)
+                    )
+                    tts.load_model()
+                    print("✅ TTS automático carregado dos modelos do projeto")
+                except Exception as e:
+                    print(f"❌ Não foi possível carregar TTS automático: {e}")
+            else:
+                print(f"⚠️ Modelos TTS não encontrados em: {models_dir}")
+
         yield
 
     app = FastAPI(title="Jarvis", version="0.1.0", lifespan=lifespan)
-    app.add_middleware(RequestBodyLimitMiddleware, max_body_bytes=MAX_REQUEST_BODY_BYTES)
+    app.add_middleware(
+        RequestBodyLimitMiddleware, max_body_bytes=MAX_REQUEST_BODY_BYTES
+    )
     app.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=["127.0.0.1", "localhost", "::1"],
@@ -205,7 +236,9 @@ def create_app(manager: ConversationManager | None = None) -> FastAPI:
             "title": session.title,
             "created_at": session.created_at.isoformat(),
             "updated_at": session.updated_at.isoformat(),
-            "messages": [_serialize_message(message) for message in session.messages],
+            "messages": [
+                _serialize_message(message) for message in session.messages
+            ],
         }
 
     @app.post("/api/sessions")
@@ -217,9 +250,9 @@ def create_app(manager: ConversationManager | None = None) -> FastAPI:
         return {"session_id": session.id, "title": session.title}
 
     @app.post("/api/chat")
-    def chat(payload: ChatRequest) -> dict[str, str]:
+    def chat(payload: ChatRequest) -> dict[str, Any]:
         try:
-            return conversation_manager.chat(
+            result = conversation_manager.chat(
                 payload.session_id,
                 payload.message,
                 request_id=payload.request_id,
@@ -234,6 +267,31 @@ def create_app(manager: ConversationManager | None = None) -> FastAPI:
                 detail=f"Provedor de IA indisponível: {exc}",
             ) from exc
 
+        # 3. Indentação corrigida dentro da função chat
+        spoken = False
+        if payload.speak:
+            if tts is not None:
+                try:
+                    raw_text = result.get("response", "")
+                    clean_text = re.sub(r"```[\s\(\S\)]*?```", "Veja o código na tela.", raw_text)
+                    clean_text = re.sub(r"[`*_~#•-]+", " ", clean_text)
+                    clean_text = re.sub(r"\s+", " ", clean_text).strip()
+                    tts.synthesize_and_play(clean_text)
+                    spoken = True
+                except TTSError as exc:
+                    print(f"Erro TTS: {exc}")
+                    spoken = False
+            else:
+                print("TTS não disponível - resposta será apenas texto")
+
+        return {
+            "session_id": result["session_id"],
+            "title": result["title"],
+            "response": result["response"],
+            "model": result["model"],
+            "spoken": spoken,
+        }
+
     @app.delete("/api/test/sessions")
     def clear_all_sessions() -> dict[str, str]:
         """Limpa todas as sessões (apenas para testes)."""
@@ -241,6 +299,30 @@ def create_app(manager: ConversationManager | None = None) -> FastAPI:
         return {"status": "cleared"}
 
     return app
+
+
+def _clean_text_for_tts(text: str) -> str:
+    """Remove formatação Markdown e símbolos para uma leitura fluida no TTS."""
+    # Remove blocos de código completos (```...```) para o Jarvis não ler código linha por linha
+    text = re.sub(
+        r"```[\s\(\S\)]*?```",
+        "Veja o código na tela.",
+        text,
+    )
+    # Remove crases de código inline (`codigo`) mantendo a palavra
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    # Remove links [texto](url) deixando apenas o texto
+    text = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", text)
+    # Remove hashtags de títulos (#, ##, ###)
+    text = re.sub(r"^#+\s*", "", text, flags=re.MULTILINE)
+    # Remove negrito, itálico e tachado (*, _, ~)
+    text = re.sub(r"[*_~]+", "", text)
+    # Remove marcadores de lista no início das linhas (- ou •)
+    text = re.sub(r"^\s*[-•]\s+", "", text, flags=re.MULTILINE)
+    # Limpa múltiplos espaços ou quebras de linha seguidas
+    text = re.sub(r"\n{2,}", ". ", text)
+    text = re.sub(r"\s{2,}", " ", text)
+    return text.strip()
 
 
 app = create_app()

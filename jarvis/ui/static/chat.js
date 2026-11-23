@@ -6,7 +6,9 @@ const composer = document.getElementById("composer");
 const sendButton = document.getElementById("send-message");
 const statusMessage = document.getElementById("status");
 const assistantAnnouncement = document.getElementById("assistant-announcement");
+const speakButton = document.getElementById("speak-button");
 let activeSessionId = null;
+let isSpeakingEnabled = false;
 let isSending = false;
 let isCreatingSession = false;
 let sessionLoadToken = 0;
@@ -167,6 +169,12 @@ document.getElementById("new-session").addEventListener("click", async () => {
   }
 });
 
+speakButton.addEventListener("click", () => {
+  isSpeakingEnabled = !isSpeakingEnabled;
+  speakButton.setAttribute("aria-pressed", isSpeakingEnabled);
+  setStatus(isSpeakingEnabled ? "Modo de voz ativado." : "Modo de voz desativado.");
+});
+
 composer.addEventListener("submit", async (event) => {
   event.preventDefault();
   const content = messageInput.value.trim();
@@ -189,15 +197,21 @@ composer.addEventListener("submit", async (event) => {
         session_id: activeSessionId,
         message: content,
         request_id: pendingRequestId,
+        speak: isSpeakingEnabled,
       }),
     });
     conversationTitle.textContent = response.title;
     addMessage("user", content);
     addMessage("assistant", response.response, true);
+    if (response.spoken) {
+      setStatus("Resposta falada pelo assistente.");
+    } else if (isSpeakingEnabled) {
+      setStatus("Resposta recebida (áudio indisponível).");
+    } else {
+      setStatus(`Resposta recebida. Modelo: ${response.model}`);
+    }
     messageInput.value = "";
     pendingRequestId = null;
-    await loadSessions(activeSessionId);
-    setStatus(`Resposta recebida. Modelo: ${response.model}`);
   } catch (error) {
     setStatus(error.message, true);
   } finally {
