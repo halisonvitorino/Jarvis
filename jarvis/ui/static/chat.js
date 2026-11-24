@@ -224,4 +224,219 @@ composer.addEventListener("submit", async (event) => {
   }
 });
 
+// Voice Reactive Three.js Sphere - initialization start
+function initVoiceSphere() {
+// Voice Reactive Three.js Sphere - animation loop
+function animate() {
+// Voice Reactive Three.js Sphere - color update
+function updateSphereColor() {
+// Voice Reactive Three.js Sphere - live caption
+let isTyping = false;
+// Voice Reactive Three.js Sphere - WebSocket and voice state
+let wsVoice = null;
+// Voice Reactive Three.js Sphere - start on DOM load
+document.addEventListener("DOMContentLoaded", () => {
+  initVoiceSphere();
+  connectVoiceWS();
+});
+// Voice reactive state
+let volumeData = { volume: 0.0, bands: [0.0] * 16 };
+let voiceData = { volume: 0.0, bands: [0.0] * 16, speaking: false, thinking: false };
+
+function connectVoiceWS() {
+  wsVoice = new WebSocket(`ws:${window.location.host}/ws/voice`);
+  
+  wsVoice.onopen = () => console.log("Voice WS connected");
+  
+  wsVoice.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      updateVoiceState(data);
+    } catch (e) {
+      console.error("WS parse error:", e);
+    }
+  };
+  
+  wsVoice.onclose = () => {
+    console.log("Voice WS disconnected");
+    setTimeout(connectVoiceWS, 2000);
+  };
+  
+  wsVoice.onerror = (error) => {
+    console.error("WS error:", error);
+  };
+}
+
+function updateVoiceState(data) {
+  volumeData.volume = volumeData.volume + (data.volume - volumeData.volume) * 0.15;
+  voiceData.volume = volumeData.volume;
+  voiceData.speaking = data.speaking === true || volumeData.volume > 0.3;
+  voiceData.thinking = data.thinking === true;
+  
+  if (data.bands) {
+    for (let i = 0; i < 16; i++) {
+      voiceData.bands[i] = voiceData.bands[i] + (data.bands[i] - voiceData.bands[i]) * 0.15;
+    }
+  }
+  
+  updateSphereVisuals();
+  
+  if (voiceData.speaking && !isTyping) {
+    addLiveCaption("");
+  }
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+// Voice Reactive Three.js Sphere - visual update
+function updateSphereVisuals() {
+  const baseScale = 1 + voiceData.volume * 0.3;
+  sphere.scale.setScalar(baseScale);
+  
+  if (voiceData.speaking) {
+    const speed = 0.02 + voiceData.volume * 0.1;
+    sphere.rotation.y += speed;
+    sphere.rotation.x += speed * 0.5;
+  }
+  
+  sphere.material.emissiveIntensity = Math.min(0.5, voiceData.volume * 0.5);
+}
+// Voice Reactive Three.js Sphere - WebSocket and voice state end
+let captionQueue = [];
+
+function addLiveCaption(text) {
+  if (isTyping) {
+    captionQueue.push(text);
+    return;
+  }
+  
+  isTyping = true;
+  const captionSpan = document.querySelector(".caption-text");
+  const liveCaption = document.getElementById("live-caption");
+  
+  captionSpan.textContent = "";
+  liveCaption.classList.add("visible");
+  
+  let i = 0;
+  const typeInterval = setInterval(() => {
+    if (i < text.length) {
+      captionSpan.textContent += text.charAt(i);
+      i++;
+    } else {
+      clearInterval(typeInterval);
+      isTyping = false;
+      
+      if (captionQueue.length > 0) {
+        const nextText = captionQueue.shift();
+        setTimeout(() => addLiveCaption(nextText), 200);
+      } else {
+        setTimeout(() => {
+          liveCaption.classList.remove("visible");
+          isTyping = false;
+        }, 1500);
+      }
+    }
+  }, 30);
+  
+  captionSpan.style.animation = "type-on 0.5s forwards";
+  captionSpan.style.background = "rgba(40, 120, 95, 0.8)";
+}
+// Voice Reactive Three.js Sphere - live caption end
+  let targetColor;
+  
+  if (voiceData.speaking) {
+    targetColor = 0xe74c3c;
+    sphere.material.emissive = new THREE.Color(0xe74c3c);
+    sphere.material.emissiveIntensity = 0.3 + 0.2 * Math.sin(Date.now() * 0.02);
+  } else if (voiceData.thinking) {
+    targetColor = 0x9b59b6;
+    if (Math.sin(Date.now() * 0.01) > 0) {
+      thinkingMesh.visible = true;
+      thinkingMesh.material.opacity = 0.3 + 0.2 * Math.sin(Date.now() * 0.01);
+    } else {
+      thinkingMesh.visible = true;
+      thinkingMesh.material.opacity = 0.1;
+    }
+  } else if (voiceData.volume > 0.1) {
+    targetColor = 0xf39c12;
+    sphere.material.emissive = new THREE.Color(0xf39c12);
+    sphere.material.emissiveIntensity = voiceData.volume * 0.5;
+  } else {
+    targetColor = 0x28785f;
+    thinkingMesh.visible = false;
+    sphere.material.emissiveIntensity = 0;
+  }
+  
+  sphere.material.color.setStyle(
+    THREE.ColorUtils.lerpColor(
+      new THREE.Color(sphere.material.color.getHex()),
+      new THREE.Color(targetColor),
+      0.1
+    )
+  );
+}
+// Voice Reactive Three.js Sphere - color update end
+  requestAnimationFrame(animate);
+  
+  if (voiceData.speaking) {
+    sphere.rotation.y += 0.02 * (1 + voiceData.volume);
+    sphere.rotation.x += 0.01 * voiceData.volume;
+  } else if (voiceData.thinking) {
+    sphere.rotation.y += 0.005;
+  } else {
+    sphere.rotation.y += 0.002;
+    sphere.rotation.x += 0.001;
+  }
+  
+  const breatheScale = 1 + 0.05 * Math.sin(Date.now() * 0.002);
+  sphere.scale.set(breatheScale, breatheScale, breatheScale);
+  
+  updateSphereColor();
+  
+  controls.update();
+  renderer.render(scene, camera);
+}
+// Voice Reactive Three.js Sphere - animation loop end
+  const container = document.getElementById("voice-sphere-canvas");
+  if (!container) return;
+  
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+  camera.position.z = 5;
+  
+  const renderer = new THREE.WebGLRenderer({ antialias: true, canvas: container });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  
+  const geometry = new THREE.SphereGeometry(1, 64, 64);
+  sphere = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0x28785f }));
+  scene.add(sphere);
+  
+  const ambientLight = new THREE.AmbientLight(0x28785f, 0.5);
+  scene.add(ambientLight);
+  
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  dirLight.position.set(5, 5, 5);
+  scene.add(dirLight);
+  
+  thinkingMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(1.1, 64, 64),
+    new THREE.MeshBasicMaterial({ color: 0x9b59b6, transparent: true, opacity: 0, visible: false })
+  );
+  scene.add(thinkingMesh);
+  
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.05;
+  
+  window.addEventListener("resize", () => {
+    camera.aspect = container.clientWidth / container.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(container.clientWidth, container.clientHeight);
+  });
+  
+  animate();
+}
+// Voice Reactive Three.js Sphere - initialization end
 loadSessions().catch((error) => setStatus(error.message, true));

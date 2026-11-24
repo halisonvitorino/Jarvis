@@ -412,28 +412,30 @@ class MockNvidiaClient:
 class TestConversationManager(ConversationManager):
     """ConversationManager com clientes de IA injetáveis para testes."""
 
-    def __init__(self, provider: str = "gemini",
-                 omniroute: MockOmnirouteClient | None = None,
-                 gemini: MockGeminiClient | None = None,
-                 nvidia: MockNvidiaClient | None = None) -> None:
-        # Don't call super().__init__() as it creates real clients
+    def __init__(
+        self,
+        provider: str = "gemini",
+        omniroute: MockOmnirouteClient | None = None,
+        gemini: MockGeminiClient | None = None,
+        nvidia: MockNvidiaClient | None = None,
+    ) -> None:
+        # Inicializa corretamente os slots do @dataclass pai
+        super().__init__()
         self._test_provider = provider
-        self.session_manager = ConversationManager().session_manager
-        self.settings = ConversationManager().settings
         self.settings.default_provider = provider
-        self.model_router = ConversationManager().model_router
-        self.prompt_builder = ConversationManager().prompt_builder
-        self._session_locks = {}
-        self._locks_guard = ConversationManager()._locks_guard
-        self._completed_requests = {}
-        self._completed_requests_lock = ConversationManager()._completed_requests_lock
-        
+        self.model_router.provider = provider
+
+        # Substitui os clientes reais pelos mocks nos slots
         self.omniroute_client = omniroute or MockOmnirouteClient()
         self.gemini_client = gemini or MockGeminiClient()
         self.nvidia_client = nvidia or MockNvidiaClient()
 
-    def _generate_with_provider(self, model: str, prompt: str,
-                                system_prompt: str | None = None) -> str:
+    def _generate_with_provider(
+        self,
+        model: str,
+        prompt: str,
+        system_prompt: str,
+    ) -> str:
         """Delegação direta para o cliente injetado conforme provider do teste."""
         if self._test_provider == "gemini":
             return self.gemini_client.generate(prompt, system_prompt, model)

@@ -298,6 +298,82 @@ def create_app(
         conversation_manager.session_manager.clear_all_sessions()
         return {"status": "cleared"}
 
+    @app.websocket("/ws/voice")
+    async def websocket_voice(websocket: WebSocket):
+        await websocket.accept()
+        import json
+        import asyncio
+        import numpy as np
+        
+        # Voice state
+        voice_state = {
+            "volume": 0.0,
+            "bands": [0.0] * 16,
+            "speaking": False,
+            "thinking": False
+        }
+        
+        # Audio buffer for analysis
+        audio_buffer = []
+        buffer_size = 1024
+        
+        try:
+            while True:
+                # Receive audio data from client
+                data = await websocket.receive_text()
+                try:
+                    audio_chunk = json.loads(data)
+                    if "audio" in audio_chunk:
+                        # Process audio for volume and frequencies
+                        samples = np.array(audio_chunk["audio"], dtype=np.float32)
+                        if len(samples) > 0:
+                            # Calculate RMS volume
+                            rms = np.sqrt(np.mean(samples ** 2))
+                            voice_state["volume"] = min(1.0, float(rms) * 10)
+                            
+                            # Calculate FFT frequency bands
+                            if len(samples) >= 256:
+                                # Apply windowing
+                                windowed = samples * np.hanning(len(samples))
+                                fft = np.fft.rfft(windowed, n=256)
+                                magnitudes = np.abs(fft[:129])
+                                
+                                # Create 8-16 bands (mel-scale approximation)
+                                band_size = 128 // 8  # 16 bands from 128 frequency bins
+                                bands = []
+                                for i in range(8):
+                                    start = i * band_size
+                                    end = min((i + 1) * band_size, 128)
+                                    if start < end:
+                                        band_val = np.mean(magnitudes[start:end])
+                                    else:
+                                        band_val = 0.0
+                                    # Normalize to 0-1
+                                    band_val = min(1.0, float(band_val) * 5)
+                                    bands.append(band_val)
+                                    
+                                # Pad to 16 bands if needed
+                                while len(bands) < 16:
+                                    bands.append(0.0)
+                                voice_state["bands"] = bands[:16]
+                            
+                            # Detect speaking state
+                            if voice_state["volume"] > 0.3:
+                                voice_state["speaking"] = True
+                            else:
+                                voice_state["speaking"] = False
+                        
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    pass
+                
+                # Send current voice state
+                await websocket.send_text(json.dumps(voice_state))
+                await asyncio.sleep(0.03)  # ~30fps
+                
+        except Exception as e:
+            print(f"WebSocket error: {e}")
+        finally:
+            await websocket.close()
     return app
 
 
