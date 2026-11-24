@@ -419,6 +419,16 @@ class TestConversationManager(ConversationManager):
         gemini: MockGeminiClient | None = None,
         nvidia: MockNvidiaClient | None = None,
     ) -> None:
+        import os
+
+        from jarvis.core.config import get_settings
+
+        # Configurar provider no ambiente antes de inicializar o pai
+        # para evitar validação de chave de API em testes com mocks
+        os.environ["JARVIS_DEFAULT_PROVIDER"] = provider
+        if provider == "gemini":
+            os.environ.setdefault("JARVIS_GEMINI_API_KEY", "test-dummy-key")
+        get_settings.cache_clear()
         # Inicializa corretamente os slots do @dataclass pai
         super().__init__()
         self._test_provider = provider

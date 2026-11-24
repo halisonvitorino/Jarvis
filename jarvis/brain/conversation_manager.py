@@ -26,6 +26,7 @@ class IdempotencyConflictError(RuntimeError):
 class ConversationManager:
     session_manager: SessionManager = field(default_factory=SessionManager)
     settings: object = field(default_factory=get_settings)
+    memory_manager: MemoryManager = field(default_factory=MemoryManager)
     model_router: ModelRouter = field(init=False)
     omniroute_client: OmnirouteClient = field(init=False)
     gemini_client: GeminiClient = field(init=False)
@@ -60,6 +61,7 @@ class ConversationManager:
             base_url=self.settings.nvidia_base_url,
             model=self.settings.nvidia_model,
         )
+        self.memory_manager = MemoryManager()
 
     def create_session(self, title: str = "Nova conversa") -> ChatSession:
         return self.session_manager.create_session(title)
@@ -133,6 +135,14 @@ class ConversationManager:
                 f"{item.role}: {item.content}"
                 for item in session.messages[-(MAX_CONTEXT_MESSAGES - 1) :]
             ]
+            # Recuperar memórias relevantes da memória de longo prazo
+            relevant_memories = self.memory_manager.semantic_search(
+                query=message, n_results=5, session_id=session_key
+            )
+            if relevant_memories:
+                history.append(
+                    "memórias relevantes: " + " | ".join(relevant_memories)
+                )
             prompt = self.prompt_builder.build_prompt(message, history)
             system_prompt = self.prompt_builder.build_system_prompt()
 
@@ -185,6 +195,23 @@ class ConversationManager:
                 session.title = message.strip().splitlines()[0][:60]
             self.add_message(session_id, "user", message)
             self.add_message(session_id, "assistant", response)
+            # Persistir interações na memória de longo prazo
+            try:
+                self.memory_manager.update_session_memory(session_key, "user", message)
+                self.memory_manager.update_session_memory(
+                    session_key, "assistant", response
+                )
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.warning(
+                    "Falha ao persistir interação na memória: %s", exc
+                )
+            # Extrair e armazenar informações de perfil quando apropriado (JARVIS-A-012)
+            try:
+                self._extract_and_save_profile(message, session_key)
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.debug(
+                    "Falha ao extrair perfil da mensagem: %s", exc
+                )
             result = {
                 "session_id": session_id,
                 "title": session.title,
@@ -198,3 +225,64 @@ class ConversationManager:
                         oldest_request = next(iter(self._completed_requests))
                         del self._completed_requests[oldest_request]
             return result
+
+    def _extract_and_save_profile(self, message: str, session_key: str) -> None:
+        """Extrai informações de perfil (nome, preferências) da mensagem do usuário.
+
+        Usa padrões simples para detectar declarações de nome e preferências,
+        salvando-as como perfil de longo prazo do usuário.
+
+        Args:
+            message: Mensagem do usuário
+            session_key: Identificador da sessão
+        """
+        import re
+
+        message_lower = message.lower().strip()
+        profile_updates: dict[str, list[str]] = {}
+
+        # Detectar declaração de nome: "meu nome é X", "me chamo X", "sou o/a X"
+        name_patterns = [
+            r"meu nome é\s+([a-zA-ZÀ-ÿ\s]+)",
+            r"me chamo\s+([a-zA-ZÀ-ÿ\s]+)",
+            r"sou o\s+([a-zA-ZÀ-ÿ\s]+)",
+            r"sou a\s+([a-zA-ZÀ-ÿ\s]+)",
+        ]
+        for pattern in name_patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                nome = match.group(1).strip().title()
+                if len(nome) > 1:
+                    profile_updates.setdefault("nome", []).append(nome)
+                break
+
+        # Detectar preferências: "gosto de X", "prefiro X"
+        pref_patterns = [
+            r"gosto de\s+([a-zA-ZÀ-ÿ\s]+)",
+            r"prefiro\s+([a-zA-ZÀ-ÿ\s]+)",
+            r"gosto muito de\s+([a-zA-ZÀ-ÿ\s]+)",
+        ]
+        for pattern in pref_patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                pref = match.group(1).strip()
+                if len(pref) > 2:
+                    profile_updates.setdefault("preferencias", []).append(pref)
+                break
+
+        if profile_updates:
+            try:
+                existing = self.memory_manager.get_user_profile(session_key)
+                merged: dict[str, Any] = dict(existing)
+                for key, values in profile_updates.items():
+                    current = merged.get(key, [])
+                    if isinstance(current, list):
+                        merged[key] = list(dict.fromkeys([*current, *values]))
+                    else:
+                        merged[key] = values
+                self.memory_manager.save_user_profile(session_key, merged)
+                logger.debug(
+                    "Perfil atualizado para sessão %s: %s", session_key, profile_updates
+                )
+            except Exception as exc:
+                logger.debug("Falha ao salvar perfil: %s", exc)

@@ -63,6 +63,18 @@ class Settings(BaseSettings):
 
     default_provider: str = Field(default="gemini")
 
+    @field_validator("gemini_api_key")
+    @classmethod
+    def _validate_gemini_key(cls, value: str, info) -> str:
+        """Valida que a chave do Gemini esteja configurada quando é o provedor padrão."""
+        provider = info.data.get("default_provider", "gemini")
+        if provider == "gemini" and not value.strip():
+            raise ValueError(
+                "JARVIS_GEMINI_API_KEY é obrigatória quando default_provider='gemini'. "
+                "Configure no arquivo .env."
+            )
+        return value
+
     def ensure_directories(self) -> None:
         """Cria os diretórios necessários para o funcionamento do JARVIS."""
         for directory in (self.log_dir, self.data_dir, self.database_path.parent):

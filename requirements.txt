@@ -13,7 +13,10 @@ pydub>=0.25,<1
 # Memory System Vector Search (Phase 2 adjustment) - ChromaDB
 chromadb>=1.0,<2
 
+# Real embeddings for semantic memory search
+sentence-transformers>=2.5,<4
+
 # Vision System (Phase 4) - Screenshot and OCR
 mss>=5.0,<6
 easyocr>=1.6,<2
- Pillow>=10.0,<11
+Pillow>=10.0,<11

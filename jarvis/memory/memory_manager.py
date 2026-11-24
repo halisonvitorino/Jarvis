@@ -18,17 +18,31 @@ import logging
 from typing import Any, Optional, List
 
 from jarvis.memory import MemoryStore
+from jarvis.core.config import PROJECT_ROOT
 from jarvis.core.config import get_settings
+from jarvis.memory.vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
+
+# Embedding model loaded lazily to avoid heavy import at startup
+_embedding_model = None
 
 
 class MemoryManager:
     """Facade for MemoryStore integration with ConversationManager."""
 
-    def __init__(self, storage_dir: Optional[str] = None) -> None:
+    def __init__(
+        self, storage_dir: Optional[str] = None, chroma_db_path: Optional[str] = None
+    ) -> None:
         self.memory = MemoryStore(storage_dir)
-        logger.info("MemoryManager initialized with storage at %s", self.memory.storage_dir)
+        # VectorStore usa caminho próprio (padrão: data/chroma)
+        vs_path = chroma_db_path or str(PROJECT_ROOT / "data" / "chroma")
+        self.vs = VectorStore(storage_dir=vs_path)
+        logger.info(
+            "MemoryManager initialized with storage at %s and VectorStore at %s",
+            self.memory.storage_dir,
+            vs_path,
+        )
 
     def update_session_memory(self, session_id: str, role: str, content: str) -> dict[str, str]:
         """Register a new message in session memory.
@@ -136,56 +150,60 @@ class MemoryManager:
             logger.error("Failed to get context for session %s: %s", session_id, exc)
             raise
 
-    def semantic_search(self, query: str, n_results: int = 5) -> List[str]:
+    def semantic_search(
+        self, query: str, n_results: int = 5, session_id: Optional[str] = None
+    ) -> List[str]:
         """Search memory for semantically similar items.
 
-        Uses ChromaDB vector store to find items matching the query concept.
+        Uses ChromaDB vector store with real embeddings to find items matching
+        the query concept. Returns the actual content of matching memories.
 
         Args:
             query: Search query text
             n_results: Number of results to return (default: 5)
+            session_id: Optional session ID to isolate memory search per session
 
         Returns:
             List of matching message contents sorted by relevance
         """
-        from jarvis.memory.vector_store import vector_store as vs
-
         try:
-            # Generate a simple embedding from the query text
-            # In production, this would use a proper embedding model
             embedding = self._create_embedding(query)
-            results = vs.search(embedding, n_results=n_results)
-            matches: List[str] = results.get("ids", []) or []
-            logger.info("Semantic search for '%s' returned %d results", query, len(matches))
+            results = self.vs.search(embedding, n_results=n_results, session_id=session_id)
+            # Return document contents, not just IDs
+            documents = results.get("documents", [[]]) or [[]]
+            matches: List[str] = [doc for doc in documents[0] if doc] if documents else []
+            logger.info(
+                "Semantic search for '%s' returned %d results", query, len(matches)
+            )
             return matches
         except Exception as exc:  # pylint: disable=broad-except
             logger.error("Semantic search failed for query '%s': %s", query, exc)
             raise
 
-    @staticmethod
-    def _create_embedding(text: str) -> List[float]:
-        """Create a simple embedding from text.
+    def _create_embedding(self, text: str) -> List[float]:
+        """Create a real embedding from text using sentence-transformers.
 
-        Uses a hash-based approach for deterministic embedding generation.
-        In production, this would be replaced by a sentence-transformers model.
+        Loads the all-MiniLM-L6-v2 model lazily on first use and caches it.
 
         Args:
             text: Input text to embed
 
         Returns:
-            List of floating point values representing the embedding
+            List of floating point values representing the embedding (384 dimensions)
         """
-        import hashlib
+        global _embedding_model
+        if _embedding_model is None:
+            try:
+                from sentence_transformers import SentenceTransformer
 
-        hash_object = hashlib.sha256(text.encode("utf-8")).hexdigest()
-        # Convert hex to float list in range [-1, 1]
-        embedding: List[float] = []
-        for i in range(0, 64, 2):
-            hex_val = hash_object[i:i+2]
-            float_val = (int(hex_val, 16) / 255.0) * 2.0 - 1.0
-            embedding.append(float_val)
-        # Pad or truncate to 384 dimensions ( typical embedding size )
-        while len(embedding) < 384:
-            embedding.append(0.0)
-        embedding = embedding[:384]
-        return embedding
+                _embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+                logger.info("Embedding model 'all-MiniLM-L6-v2' loaded")
+            except ImportError as exc:
+                logger.error("sentence-transformers not installed: %s", exc)
+                raise RuntimeError(
+                    "sentence-transformers is required for real embeddings. "
+                    "Install with: pip install sentence-transformers"
+                ) from exc
+
+        embedding = _embedding_model.encode(text, convert_to_numpy=True)
+        return embedding.tolist()
