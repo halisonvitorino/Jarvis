@@ -75,6 +75,30 @@ class Settings(BaseSettings):
             )
         return value
 
+    @field_validator("nvidia_api_key")
+    @classmethod
+    def _validate_nvidia_key(cls, value: str, info) -> str:
+        """Valida que a chave da NVIDIA esteja configurada quando é o provedor padrão."""
+        provider = info.data.get("default_provider", "gemini")
+        if provider == "nvidia" and not value.strip():
+            raise ValueError(
+                "JARVIS_NVIDIA_API_KEY é obrigatória quando default_provider='nvidia'. "
+                "Configure no arquivo .env."
+            )
+        return value
+
+    @field_validator("omniroute_api_key")
+    @classmethod
+    def _validate_omniroute_key(cls, value: str, info) -> str:
+        """Valida que a chave do Omniroute esteja configurada quando é o provedor padrão."""
+        provider = info.data.get("default_provider", "gemini")
+        if provider == "omniroute" and not value.strip():
+            raise ValueError(
+                "JARVIS_OMNIROUTE_API_KEY é obrigatória quando default_provider='omniroute'. "
+                "Configure no arquivo .env."
+            )
+        return value
+
     def ensure_directories(self) -> None:
         """Cria os diretórios necessários para o funcionamento do JARVIS."""
         for directory in (self.log_dir, self.data_dir, self.database_path.parent):

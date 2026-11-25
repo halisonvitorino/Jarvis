@@ -261,6 +261,12 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            # Captura erros de dependências faltando (ex: sentence-transformers)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Erro de configuração: {exc}",
+            ) from exc
         except (OmnirouteError, GeminiError, NvidiaError) as exc:
             raise HTTPException(
                 status_code=503,

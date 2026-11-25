@@ -21,5 +21,8 @@
   "devDependencies": {
     "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6"
+  },
+  "dependencies": {
+    "@opencode/cli": "^2.4.1"
   }
 }

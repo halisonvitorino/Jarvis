@@ -42,3 +42,15 @@ class AIClient(ABC):
             AIClientError: Se a solicitação falhar.
         """
         ...
+
+    @abstractmethod
+    def is_available(self) -> bool:
+        """Verifica se o provedor de IA está disponível para conexão."""
+
+    @abstractmethod
+    def health_check(self) -> dict:
+        """Realiza uma verificação de saúde do provedor, retornando status e metadados.
+
+        Returns:
+            Dicionário com informações de saúde do provedor.
+        """

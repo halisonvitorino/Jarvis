@@ -87,3 +87,13 @@ class OmnirouteClient(AIClient):
         if not isinstance(text, str) or not text.strip():
             raise OmnirouteError("O Omniroute retornou uma resposta vazia.")
         return text.strip()
+
+    def is_available(self) -> bool:
+        """Verifica se a chave API do Omniroute está configurada."""
+        return bool(self.api_key)
+
+    def health_check(self) -> dict:
+        """Realiza uma verificação de saúde simples do Omniroute."""
+        if not self.is_available():
+            return {"available": False, "reason": "API key not configured"}
+        return {"available": True, "model": self.model or "default", "api_key_configured": True}

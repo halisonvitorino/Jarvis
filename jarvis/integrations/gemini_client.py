@@ -134,3 +134,13 @@ class GeminiClient(AIClient):
             raise GeminiError("O Gemini retornou uma resposta vazia.")
 
         return text.strip()
+
+    def is_available(self) -> bool:
+        """Verifica se a chave API do Gemini está configurada."""
+        return bool(self.api_key)
+
+    def health_check(self) -> dict:
+        """Realiza uma verificação de saúde simples do Gemini."""
+        if not self.is_available():
+            return {"available": False, "reason": "API key not configured"}
+        return {"available": True, "model": self.model, "api_key_configured": True}

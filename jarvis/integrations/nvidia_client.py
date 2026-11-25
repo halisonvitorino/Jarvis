@@ -126,3 +126,13 @@ class NvidiaClient(AIClient):
             raise NvidiaError("A NVIDIA retornou uma resposta vazia.")
 
         return text.strip()
+
+    def is_available(self) -> bool:
+        """Verifica se a chave API da NVIDIA está configurada."""
+        return bool(self.api_key)
+
+    def health_check(self) -> dict:
+        """Realiza uma verificação de saúde simples da NVIDIA."""
+        if not self.is_available():
+            return {"available": False, "reason": "API key not configured"}
+        return {"available": True, "model": self.model, "api_key_configured": True}
