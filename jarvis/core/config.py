@@ -63,6 +63,9 @@ class Settings(BaseSettings):
 
     default_provider: str = Field(default="gemini")
 
+    # Omniroute model (alternativo)
+    omniroute_model: str = Field(default="omniroute/default")
+
     @field_validator("gemini_api_key")
     @classmethod
     def _validate_gemini_key(cls, value: str, info) -> str:

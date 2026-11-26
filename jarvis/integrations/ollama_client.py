@@ -19,9 +19,10 @@ class OmnirouteError(AIClientError):
 class OmnirouteClient(AIClient):
     """Cliente para interagir com o serviço Omniroute."""
 
-    def __init__(self, base_url: str | None = None, api_key: str | None = None) -> None:
+    def __init__(self, base_url: str | None = None, api_key: str | None = None, model: str | None = None) -> None:
         self.base_url = (base_url or "http://127.0.0.1:20128/v1").rstrip("/")
         self.api_key = api_key or os.getenv("OMNIROUTE_API_KEY", "")
+        self.model = model or "default"
 
     def generate(
         self,

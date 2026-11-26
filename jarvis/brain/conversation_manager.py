@@ -3,12 +3,15 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass, field
 from threading import Lock, RLock
+from typing import Any
 
 from jarvis.brain.model_router import ModelRouter
 from jarvis.brain.prompt_builder import PromptBuilder
 from jarvis.brain.session_manager import ChatMessage, ChatSession, SessionManager
 from jarvis.core.config import get_settings
 from jarvis.core.logger import get_logger
+from jarvis.core.retry import retry_with_backoff
+from jarvis.integrations.ai_client import AIClient
 from jarvis.integrations.gemini_client import GeminiClient, GeminiError
 from jarvis.integrations.nvidia_client import NvidiaClient, NvidiaError
 from jarvis.integrations.ollama_client import OmnirouteClient, OmnirouteError
@@ -40,6 +43,12 @@ class ConversationManager:
         repr=False,
     )
     _completed_requests_lock: Lock = field(default_factory=Lock, init=False, repr=False)
+    _provider_clients: dict[str, AIClient] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _provider_errors: dict[str, type[Exception]] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         self.model_router = ModelRouter(
@@ -47,10 +56,7 @@ class ConversationManager:
             primary_model=self.settings.gemini_model,
             fallback_model=self.settings.gemini_model,
             nvidia_model=self.settings.nvidia_model,
-        )
-        self.omniroute_client = OmnirouteClient(
-            base_url=self.settings.omniroute_base_url,
-            api_key=self.settings.omniroute_api_key,
+            omniroute_model=self.settings.omniroute_model,
         )
         self.gemini_client = GeminiClient(
             api_key=self.settings.gemini_api_key,
@@ -61,7 +67,30 @@ class ConversationManager:
             base_url=self.settings.nvidia_base_url,
             model=self.settings.nvidia_model,
         )
+        self.omniroute_client = OmnirouteClient(
+            base_url=self.settings.omniroute_base_url,
+            api_key=self.settings.omniroute_api_key,
+        )
         self.memory_manager = MemoryManager()
+
+        # Registrar provedores e suas excecoes especificas
+        self._provider_clients = {
+            "gemini": self.gemini_client,
+            "nvidia": self.nvidia_client,
+            "omniroute": self.omniroute_client,
+        }
+        self._provider_errors = {
+            "gemini": GeminiError,
+            "nvidia": NvidiaError,
+            "omniroute": OmnirouteError,
+        }
+
+        # Definir ordem de fallback: primario primeiro, depois alternativas
+        provider_order = [self.settings.default_provider]
+        for p in ("gemini", "nvidia", "omniroute"):
+            if p not in provider_order:
+                provider_order.append(p)
+        self.model_router.set_providers(provider_order)
 
     def create_session(self, title: str = "Nova conversa") -> ChatSession:
         return self.session_manager.create_session(title)
@@ -88,11 +117,34 @@ class ConversationManager:
 
     def _generate_with_provider(
         self,
+        provider: str,
         model: str,
         prompt: str,
         system_prompt: str,
     ) -> str:
-        provider = self.settings.default_provider
+        """Gera resposta usando o provedor especificado via abstracao AIClient.
+
+        Args:
+            provider: Nome do provedor (gemini, nvidia, omniroute).
+            model: Nome do modelo a ser usado.
+            prompt: Mensagem do usuario.
+            system_prompt: Instrucao do sistema.
+
+        Returns:
+            Texto da resposta gerada.
+
+        Raises:
+            AIClientError: Se o provedor nao estiver disponível ou falhar.
+        """
+        client = self._provider_clients.get(provider)
+        if client is None:
+            raise ValueError(f"Provedor desconhecido: {provider}")
+
+        # Verificar disponibilidade antes de tentar
+        if not client.is_available():
+            exc_type = self._provider_errors.get(provider, RuntimeError)
+            raise exc_type(f"Provedor {provider} nao esta disponível (sem configuracao)")
+
         kwargs = {
             "prompt": prompt,
             "system_prompt": system_prompt,
@@ -100,11 +152,71 @@ class ConversationManager:
             "top_p": 0.95,
             "max_tokens": 2048,
         }
-        if provider == "gemini":
-            return self.gemini_client.generate(model=model, **kwargs)
-        if provider == "nvidia":
-            return self.nvidia_client.generate(model=model, **kwargs)
-        return self.omniroute_client.generate(model=model, **kwargs)
+
+        @retry_with_backoff(
+            max_retries=2,
+            base_delay=1.0,
+            max_delay=10.0,
+            backoff_factor=2.0,
+            exceptions=(Exception,),
+        )
+        def _generate_with_retry() -> str:
+            return client.generate(model=model, **kwargs)
+
+        return _generate_with_retry()
+
+    def _try_all_providers(
+        self,
+        prompt: str,
+        system_prompt: str,
+        start_provider: str | None = None,
+    ) -> tuple[str, str]:
+        """Tenta gerar resposta iterando sobre provedores disponiveis.
+
+        Usa is_available() para pular provedores nao configurados e
+        faz fallback automatico para o proximo na ordem definida.
+
+        Returns:
+            Tupla (resposta, nome_do_provedor_usado).
+
+        Raises:
+            RuntimeError: Se todos os provedores falharem.
+        """
+        provider_order = self.model_router._provider_order or [
+            self.settings.default_provider,
+            "gemini",
+            "nvidia",
+            "omniroute",
+        ]
+
+        # Se start_provider foi especificado, comecar por ele
+        if start_provider and start_provider in provider_order:
+            idx = provider_order.index(start_provider)
+            ordered = provider_order[idx:] + provider_order[:idx]
+        else:
+            ordered = provider_order
+
+        last_error: Exception | None = None
+        for provider in ordered:
+            model = self.model_router.resolve_model(provider)
+            try:
+                response = self._generate_with_provider(
+                    provider, model, prompt, system_prompt
+                )
+                return response, provider
+            except Exception as exc:
+                last_error = exc
+                logger.warning(
+                    "Provedor %s falhou: %s", provider, exc
+                )
+                continue
+
+        # Se chegou aqui, todos falharam
+        error_msg = "Todos os provedores de IA estao indisponíveis"
+        if last_error:
+            error_msg += f" (ultimo erro: {last_error})"
+        logger.exception(error_msg)
+        raise RuntimeError(error_msg)
 
     def chat(
         self,
@@ -147,49 +259,16 @@ class ConversationManager:
             system_prompt = self.prompt_builder.build_system_prompt()
 
             provider = self.settings.default_provider
-            model = self.model_router.resolve_model()
+            model = self.model_router.resolve_model(provider)
 
             try:
-                response = self._generate_with_provider(model, prompt, system_prompt)
-            except (OmnirouteError, GeminiError, NvidiaError) as exc:
-                logger.warning("Provedor primário %s indisponível: %s", provider, exc)
-                if provider == "gemini":
-                    # Fallback para NVIDIA, depois Omniroute
-                    try:
-                        response = self.nvidia_client.generate(prompt, system_prompt)
-                        model = f"nvidia/{self.settings.nvidia_model}"
-                    except NvidiaError:
-                        try:
-                            response = self.omniroute_client.generate(model, prompt, system_prompt)
-                            model = f"omniroute/{model}"
-                        except OmnirouteError:
-                            logger.exception("Todos os provedores de fallback indisponíveis")
-                            raise
-                elif provider == "nvidia":
-                    # Fallback para Gemini, depois Omniroute
-                    try:
-                        response = self.gemini_client.generate(prompt, system_prompt)
-                        model = f"gemini/{self.settings.gemini_model}"
-                    except GeminiError:
-                        try:
-                            response = self.omniroute_client.generate(model, prompt, system_prompt)
-                            model = f"omniroute/{model}"
-                        except OmnirouteError:
-                            logger.exception("Todos os provedores de fallback indisponíveis")
-                            raise
-                else:
-                    # Fallback para NVIDIA, depois Gemini
-                    model = self.model_router.resolve_fallback()
-                    try:
-                        response = self.nvidia_client.generate(prompt, system_prompt)
-                        model = f"nvidia/{self.settings.nvidia_model}"
-                    except NvidiaError:
-                        try:
-                            response = self.gemini_client.generate(prompt, system_prompt)
-                            model = f"gemini/{self.settings.gemini_model}"
-                        except (OmnirouteError, GeminiError):
-                            logger.exception("Modelo de fallback indisponível: %s", model)
-                            raise
+                response, used_provider = self._try_all_providers(
+                    prompt, system_prompt, start_provider=provider
+                )
+                model = self.model_router.resolve_model(used_provider)
+            except RuntimeError as exc:
+                logger.exception("Falha ao gerar resposta: %s", exc)
+                raise
 
             if session.title == "Nova conversa" and not session.messages:
                 session.title = message.strip().splitlines()[0][:60]
